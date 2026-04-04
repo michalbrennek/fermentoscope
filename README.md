@@ -109,6 +109,18 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
 - [Adafruit CircuitPython VL53L1X](https://github.com/adafruit/Adafruit_CircuitPython_VL53L1X) (MIT) — the VL53L4CX driver's initialization sequence is derived from this library by Carter Nelson / Adafruit Industries, which is itself based on ST's VL53L1X Ultra Lite Driver
 - [Adafruit CircuitPython SCD4X](https://github.com/adafruit/Adafruit_CircuitPython_SCD4X) (MIT) — the SCD41 driver is inspired by this library by ladyada / Adafruit Industries
 
+## About the drivers
+
+The sensor drivers in `feather/lib/` are minimal, dependency-free rewrites designed to run on the ESP32's limited memory without needing the Adafruit library bundle.
+
+**`vl53l4cx.py`** — The 91-byte initialization sequence is from [Adafruit's CircuitPython VL53L1X library](https://github.com/adafruit/Adafruit_CircuitPython_VL53L1X) (MIT, Carter Nelson / Adafruit Industries), originally ported from ST's VL53L1X Ultra Lite Driver. Changes from the original:
+- Adapted for VL53L4CX (model ID 0xEB instead of 0xEA)
+- Inverted interrupt polarity on `data_ready()` to match VL53L4CX behavior
+- Uses raw I2C (`writeto_then_readfrom`) instead of Adafruit's `bus_device` abstraction
+- Added `calibrate()` for baseline distance measurement and `rise()` for tracking dough height
+
+**`scd4x.py`** — I2C command codes and temperature/humidity conversion formulas are from the [Sensirion SCD4x datasheet](https://sensirion.com/media/documents/48C4B7FB/67FE0194/CD_DS_SCD4x_Datasheet_D1.pdf). The code structure is inspired by [Adafruit's CircuitPython SCD4X library](https://github.com/adafruit/Adafruit_CircuitPython_SCD4X) (MIT, ladyada / Adafruit Industries), rewritten as a single-file driver without `adafruit_bus_device` and `adafruit_register` dependencies.
+
 ## License
 
 MIT

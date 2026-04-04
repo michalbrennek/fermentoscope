@@ -26,8 +26,8 @@ Data is served as JSON over HTTP on your local network via mDNS (`sourdough.loca
 
 | Sensor | Part | Measures | Interface |
 |--------|------|----------|-----------|
-| [Sensirion SCD41](https://www.sparkfun.com/sparkfun-co2-humidity-and-temperature-sensor-scd41-qwiic.html) | SparkFun SCD41 Qwiic (SPF-23483) | CO2, temperature, humidity | I2C 0x62 |
-| [ST VL53L4CX](https://www.adafruit.com/product/5425) | Adafruit VL53L4CX ToF (ADA-5425) | Distance (dough rise) | I2C 0x29 |
+| [SparkFun CO2 Humidity and Temperature Sensor - SCD41 (Qwiic)](https://www.sparkfun.com/sparkfun-co2-humidity-and-temperature-sensor-scd41-qwiic.html) | SPF-23483 | CO2, temperature, humidity | I2C 0x62 |
+| [Adafruit VL53L4CX Time of Flight Distance Sensor](https://www.adafruit.com/product/5425) | ADA-5425 | Distance (dough rise) | I2C 0x29 |
 
 ### Wiring
 

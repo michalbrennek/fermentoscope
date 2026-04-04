@@ -1,4 +1,12 @@
-"""Minimal SCD41 (SCD4x) driver for CircuitPython. No dependencies."""
+"""Minimal SCD41 (SCD4x) driver for CircuitPython. No dependencies.
+
+I2C command codes and conversion formulas from the Sensirion SCD4x datasheet:
+  https://sensirion.com/media/documents/48C4B7FB/67FE0194/CD_DS_SCD4x_Datasheet_D1.pdf
+
+Inspired by the Adafruit CircuitPython SCD4X library (MIT License):
+  https://github.com/adafruit/Adafruit_CircuitPython_SCD4X
+  Copyright (c) 2021 ladyada for Adafruit Industries
+"""
 
 import time
 

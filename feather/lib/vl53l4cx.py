@@ -1,4 +1,14 @@
-"""Minimal VL53L4CX ToF distance sensor driver for CircuitPython. No dependencies."""
+"""Minimal VL53L4CX ToF distance sensor driver for CircuitPython. No dependencies.
+
+Based on the Adafruit CircuitPython VL53L1X library (MIT License):
+  https://github.com/adafruit/Adafruit_CircuitPython_VL53L1X
+  Copyright (c) 2022 Carter Nelson for Adafruit Industries
+
+The initialization sequence originates from ST's VL53L1X Ultra Lite Driver (ULD).
+Register addresses from the ST VL53L1X/VL53L4CX datasheet.
+
+Adapted for VL53L4CX (model ID 0xEB vs VL53L1X 0xEA, different interrupt polarity).
+"""
 
 import struct
 import time

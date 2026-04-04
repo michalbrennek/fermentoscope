@@ -98,11 +98,16 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
 
 ## Acknowledgments
 
+### Hardware
 - [Adafruit](https://www.adafruit.com/) — ESP32 Feather V2, VL53L4CX breakout, CircuitPython, STEMMA QT ecosystem
 - [SparkFun](https://www.sparkfun.com/) — SCD41 Qwiic breakout
-- [Sensirion](https://sensirion.com/) — SCD4x sensor and datasheet
+- [Sensirion](https://sensirion.com/) — SCD4x sensor and [datasheet](https://sensirion.com/media/documents/48C4B7FB/67FE0194/CD_DS_SCD4x_Datasheet_D1.pdf)
 - [STMicroelectronics](https://www.st.com/) — VL53L4CX sensor and register documentation
+
+### Software
 - [CircuitPython](https://circuitpython.org/) — Python runtime for microcontrollers
+- [Adafruit CircuitPython VL53L1X](https://github.com/adafruit/Adafruit_CircuitPython_VL53L1X) (MIT) — the VL53L4CX driver's initialization sequence is derived from this library by Carter Nelson / Adafruit Industries, which is itself based on ST's VL53L1X Ultra Lite Driver
+- [Adafruit CircuitPython SCD4X](https://github.com/adafruit/Adafruit_CircuitPython_SCD4X) (MIT) — the SCD41 driver is inspired by this library by ladyada / Adafruit Industries
 
 ## License
 

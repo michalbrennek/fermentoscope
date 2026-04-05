@@ -238,6 +238,55 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
 | `usb` | bool | USB data cable connected (only true when plugged into a computer, not a wall charger) |
 | `uptime` | s | Seconds since last boot/reset — use this to detect a recalibration event |
 
+## BLE fallback
+
+The Feather also broadcasts the latest sensor reading as a BLE advertisement, independently of the WiFi path. This exists because WiFi + mDNS isn't always reachable — Android hotspots in particular enable **client isolation** by default, which lets the ESP32 join the hotspot but blocks HTTP between devices on the same SSID. BLE sidesteps the AP entirely: any phone, laptop, or other Pi within range can read the sensor values directly.
+
+The advertisement uses standard BLE manufacturer-specific data. The advertiser's local name is the hostname from `FERMENTOSCOPE_HOSTNAME` (default `sourdough`), and the payload sits in a Manufacturer Specific AD with company ID `0xFFFF` (Bluetooth SIG's reserved "for testing" value — consumers should filter on the advertiser name rather than the company ID alone).
+
+### Payload layout (16 bytes, little-endian)
+
+| Offset | Type | Field | Meaning |
+|-------:|------|-------|---------|
+| 0 | `uint16` | `co2` | CO2 concentration in ppm |
+| 2 | `int16`  | `temp × 100` | Temperature in hundredths of °C (so 24.30 → `2430`) |
+| 4 | `uint8`  | `hum` | Relative humidity in % (0–100) |
+| 5 | `uint16` | `dist` | Current distance to dough surface in mm |
+| 7 | `uint16` | `rise` | Dough rise from baseline in mm |
+| 9 | `uint16` | `base` | Calibrated baseline distance in mm |
+| 11 | `uint8` | `vbat × 50` | Battery voltage: `3.0 V + vbat_byte / 50` (3.0–4.2 V → 0–60) |
+| 12 | `uint32` | `uptime` | Seconds since the last ESP32 reset |
+
+Advertisements are refreshed every ~5 seconds with the latest values.
+
+### Reference scanner
+
+A standalone Python scanner is provided at [`tools/ble_scan.py`](tools/ble_scan.py). It uses [`bleak`](https://github.com/hbldh/bleak) (cross-platform BLE) and matches the payload format byte-for-byte with the Feather firmware:
+
+```bash
+pip install bleak
+python3 tools/ble_scan.py            # scan continuously
+python3 tools/ble_scan.py --once     # exit after first decode
+python3 tools/ble_scan.py --name mydough   # custom hostname
+```
+
+Example output:
+
+```
+[21:14:52] 00:4B:12:BE:B7:F8 rssi=-48dBm  co2=1891ppm temp=27.5°C hum=39% rise=0mm base=29mm vbat=4.22V uptime=2740s
+```
+
+### Pi backend uses it automatically
+
+When the Pi backend can't reach the ESP32 over HTTP (e.g. the hotspot-with-client-isolation case), it falls back to the BLE cache maintained by a background scanner in `pi/fermentoscope_server.py`. The fallback is optional — install `bleak` on the Pi to enable it:
+
+```bash
+pip install bleak
+sudo systemctl restart fermentoscope
+```
+
+If `bleak` isn't installed the Pi runs exactly as before (HTTP-only); nothing breaks.
+
 ## Acknowledgments
 
 ### Hardware

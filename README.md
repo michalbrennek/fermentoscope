@@ -278,14 +278,16 @@ Example output:
 
 ### Pi backend uses it automatically
 
-When the Pi backend can't reach the ESP32 over HTTP (e.g. the hotspot-with-client-isolation case), it falls back to the BLE cache maintained by a background scanner in `pi/fermentoscope_server.py`. The fallback is optional — install `bleak` on the Pi to enable it:
+When the Pi backend can't reach the ESP32 over HTTP (e.g. the hotspot-with-client-isolation case), it falls back to the BLE cache maintained by a background scanner in `pi/fermentoscope_server.py`. Both Pi setup scripts install `bleak`, install `rfkill`, unblock the onboard Bluetooth adapter, and enable `AutoEnable=true` in `/etc/bluetooth/main.conf` so the fallback is ready out of the box on a fresh install — no manual steps needed. If Bluetooth hardware isn't present (rare on Pi Zero 2 W, more common on custom boards) the setup script skips the step gracefully and the backend runs HTTP-only.
 
-```bash
-pip install bleak
-sudo systemctl restart fermentoscope
-```
+### How to tell which path is active — "BT" indicator
 
-If `bleak` isn't installed the Pi runs exactly as before (HTTP-only); nothing breaks.
+When the current sensor reading came from BLE rather than HTTP, a small cyan **BT** indicator appears in the UI:
+
+- **Web UI** (headless variant): next to the `Online`/`Offline` label in the status strip at the top of the page.
+- **LCD variant**: top-right corner of the values view on the 3.5" display.
+
+The indicator clears automatically on the next poll cycle once HTTP reaches the ESP32 again. If you see it stuck on, check WiFi/mDNS (the ESP32 might be on a different subnet, or the AP might have client isolation enabled — exactly the case BLE is there to work around). If you never see it during a known HTTP outage, check the `bluetooth.service` state on the Pi and confirm `bleak` is importable: `python3 -c 'from bleak import BleakScanner'`.
 
 ## Acknowledgments
 

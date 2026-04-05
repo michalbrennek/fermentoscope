@@ -18,7 +18,8 @@ HOSTNAME = os.getenv("FERMENTOSCOPE_HOSTNAME", "sourdough")
 PORT = int(os.getenv("FERMENTOSCOPE_PORT", "8080"))
 
 wifi.radio.connect(SSID, PASS)
-print(str(wifi.radio.ipv4_address))
+IP = str(wifi.radio.ipv4_address)
+print(IP)
 
 md = mdns.Server(wifi.radio)
 md.hostname = HOSTNAME
@@ -50,6 +51,8 @@ data = {
     "vbat": 0.0,
     "usb": False,
     "uptime": 0,
+    "ip": IP,
+    "host": HOSTNAME,
 }
 
 pool = socketpool.SocketPool(wifi.radio)

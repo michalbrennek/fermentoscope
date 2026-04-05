@@ -11,7 +11,28 @@ The Fermentoscope sits on top of your fermentation jar and continuously measures
 - **Relative humidity** (%)
 - **Dough rise height** (mm) — tracks how much the dough has risen from baseline
 
-Data is served as JSON over HTTP on your local network via mDNS (`sourdough.local`).
+## Architecture
+
+```
+  ┌─────────────────┐     WiFi       ┌─────────────────────┐
+  │   ESP32 Feather │ ─────────────→ │   Raspberry Pi      │
+  │  + SCD41 + ToF  │  HTTP + mDNS   │  fermentoscope.local│
+  │ sourdough.local │                │  - SQLite log       │
+  └─────────────────┘                │  - HTTPS web UI     │
+                                     │  - (optional) LCD   │
+                                     └──────────┬──────────┘
+                                                │ HTTPS
+                                                ▼
+                                     Phone / laptop / tablet
+```
+
+- **ESP32 Feather V2** runs CircuitPython, reads the sensors, and serves live JSON at `http://sourdough.local:8080/`.
+- **Raspberry Pi Zero 2 W** (or any Pi) polls the ESP32, stores readings in SQLite, and hosts a lightweight HTTPS web UI reachable at `https://fermentoscope.local/`.
+- The Pi has two variants: **base** (headless, web-only) and **LCD** (adds a Waveshare 3.5" touchscreen display).
+
+### Detecting recalibration events
+
+When you add flour to the starter, the dough level changes. Pressing **RESET** on the ESP32 recalibrates the baseline distance. The Pi detects this (via ESP32 uptime reset or baseline change) and asks — on the web UI and/or LCD — whether this is a **new start** (cumulative rise resets to 0) or you're **adding flour** (previous rise is preserved in the cumulative total).
 
 ## Hardware
 
@@ -95,7 +116,76 @@ The Feather has three user-visible LEDs:
 | **Yellow flashes** | Safe mode with error code — count of flashes indicates the reason (brown-out, hard crash, watchdog, etc.) |
 | **Off** | Deep sleep, or NeoPixel turned off by code |
 
-## Setup
+## Raspberry Pi setup
+
+The Pi polls the ESP32, logs everything to SQLite, and hosts the HTTPS web UI. Two one-shot setup scripts are provided — pick one depending on whether you have the Waveshare LCD.
+
+### Base variant — headless, web UI only
+
+Fresh **Raspberry Pi OS Lite** install (tested on a **Pi Zero 2 W**), default user `pi`. After first boot and internet access:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/michalbrennek/fermentoscope/main/pi/setup_base.sh | bash
+```
+
+The script will:
+1. Install Python, Pillow, avahi-daemon, openssl
+2. Set the hostname to `fermentoscope` (so mDNS publishes `fermentoscope.local`)
+3. Clone this repo into `/home/pi/fermentoscope`
+4. Generate a self-signed TLS certificate
+5. Install and enable the `fermentoscope.service` systemd unit
+
+When it finishes, open `https://fermentoscope.local/` from any device on the same WiFi. The browser will warn about the self-signed certificate — accept it.
+
+### LCD variant — Waveshare 3.5" touchscreen
+
+Additional hardware (all soldered / plug-and-play, no modifications):
+
+| Component | Part |
+|-----------|------|
+| Adapter | [Waveshare Zero-to-3B adapter board](https://www.waveshare.com/zero-to-3b-adapter.htm) — mounts the Pi Zero 2 W in a Pi 3 Model B footprint so that 40-pin GPIO HATs fit |
+| Display | [Waveshare 3.5" RPi LCD (A), SKU 9904](https://www.waveshare.com/3.5inch-rpi-lcd-a.htm) — ILI9486 display + XPT2046 resistive touch, plugs onto the 40-pin header |
+
+From a fresh **Raspberry Pi OS Lite** install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/michalbrennek/fermentoscope/main/pi/setup_lcd.sh | bash
+sudo reboot
+```
+
+The script does everything the base variant does, plus:
+1. Enables SPI and configures the `fbtft/piscreen` and `ads7846` device-tree overlays in `/boot/firmware/config.txt`
+2. Silences kernel console output on the framebuffer
+3. Installs a default touchscreen calibration (`/etc/pointercal`)
+4. Runs the LCD display + web UI together
+
+A reboot is required the first time so the LCD overlays take effect.
+
+On the LCD you get:
+- **Values view** — CO2, Temp, RH, Rise at the top, combined 4-parameter plot at the bottom
+- **Touch a value** → full-screen detail plot with a large back button
+- **Touch the back button** → returns to values view
+- **Calibration dialog** — full-screen when the ESP32 baseline changes, with "NEW START" and "ADDING FLOUR" buttons
+
+### Using the web UI
+
+Whichever variant you install, the web UI is always available at `https://fermentoscope.local/`:
+
+- Top row: four big colored sensor tiles — CO2 (red), Temp (yellow), RH (blue), Rise (green)
+- Below: combined plot of all four parameters over the last 24 h
+- **Click a tile** → single big plot for that parameter with a back button
+- **Click the combined plot** → 2×2 grid of large individual plots with a back button
+- When the ESP32 is recalibrated a modal appears asking "NEW START" or "ADDING FLOUR"
+
+### Changing where the ESP32 lives
+
+By default the Pi polls `http://sourdough.local:8080/`. Both setup scripts prompt for this on install. You can change it later by editing the `Environment=FERMENTOSCOPE_ESP32_URL=...` line in `/etc/systemd/system/fermentoscope.service` and running:
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl restart fermentoscope
+```
+
+## Setup — flashing the Feather
 
 ### Prerequisites
 

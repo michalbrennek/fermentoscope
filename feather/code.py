@@ -7,7 +7,7 @@ on port 8080 and registers as sourdough.local via mDNS.
 On boot/reset the ToF distance sensor calibrates against the jar bottom.
 """
 
-import board, busio, wifi, socketpool, json, time, analogio, mdns, os
+import board, busio, wifi, socketpool, json, time, analogio, mdns, os, supervisor
 from scd4x import SCD4X
 from vl53l4cx import VL53L4CX
 
@@ -48,6 +48,8 @@ data = {
     "rise": 0.0,
     "base": baseline,
     "vbat": 0.0,
+    "usb": False,
+    "uptime": 0,
 }
 
 pool = socketpool.SocketPool(wifi.radio)
@@ -84,6 +86,8 @@ while True:
                 data["dist"] = d
                 data["rise"] = max(0, baseline - d)
             data["vbat"] = round(bat_pin.value * 3.3 / 65535 * 2, 2)
+            data["usb"] = supervisor.runtime.usb_connected
+            data["uptime"] = int(n)
         except Exception as e:
             print(e)
 

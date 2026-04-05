@@ -82,7 +82,9 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
   "dist": 142,
   "rise": 33,
   "base": 175,
-  "vbat": 3.92
+  "vbat": 3.92,
+  "usb": true,
+  "uptime": 3600
 }
 ```
 
@@ -94,7 +96,9 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
 | `dist` | mm | Current distance to dough surface |
 | `rise` | mm | How much dough has risen from baseline (`base - dist`) |
 | `base` | mm | Baseline distance (calibrated on reset) |
-| `vbat` | V | Battery voltage (3.2–4.2V, >4.1V = charging) |
+| `vbat` | V | Battery voltage (3.2–4.2V) |
+| `usb` | bool | USB data cable connected (only true when plugged into a computer, not a wall charger) |
+| `uptime` | s | Seconds since last boot/reset — use this to detect a recalibration event |
 
 ## Acknowledgments
 

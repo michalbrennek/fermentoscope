@@ -231,10 +231,14 @@ def _ble_runner():
 
     async def _main():
         def _on_detect(_device, adv):
-            if adv.local_name != BLE_NAME:
-                return
             mfr = adv.manufacturer_data.get(BLE_COMPANY_ID)
-            if not mfr:
+            if not mfr or len(mfr) != BLE_PAYLOAD_LEN:
+                return
+            # Match on local name when present; fall back to "any advert
+            # with our company ID and exact payload shape" so we still
+            # catch passive-scan adverts and devices that put the name in
+            # a scan response bleak hasn't merged yet.
+            if adv.local_name is not None and adv.local_name != BLE_NAME:
                 return
             decoded = _ble_decode(bytes(mfr))
             if decoded is None:

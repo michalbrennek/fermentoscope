@@ -58,13 +58,25 @@ def pack_ble_payload(d):
 
 
 def build_ble_adv(payload):
-    """Build a raw BLE advertisement with flags + manufacturer data."""
-    # AD structure 1: Flags (LE general discoverable, BR/EDR not supported)
+    """Build a raw BLE advertisement + scan response.
+
+    Returns ``(adv_bytes, scan_response_bytes)``. Flags + Manufacturer
+    Specific Data already fills ~23 of the 31 adv-packet bytes so the
+    Complete Local Name goes in the scan response instead; active
+    scanners fetch it via ``SCAN_REQ`` and bleak merges it into
+    ``AdvertisementData.local_name``.
+    """
+    # Advertising packet (Flags + Manufacturer Specific Data)
     flags = bytes([0x02, 0x01, 0x06])
-    # AD structure 2: Manufacturer specific data (0xFF) with company ID + payload
     mfr_data = struct.pack("<H", BLE_COMPANY_ID) + payload
     mfr = bytes([len(mfr_data) + 1, 0xFF]) + mfr_data
-    return flags + mfr
+    adv = flags + mfr
+
+    # Scan response (Complete Local Name, AD type 0x09)
+    name_bytes = HOSTNAME.encode()[:29]  # 31 byte packet - 2 byte header
+    scan_response = bytes([len(name_bytes) + 1, 0x09]) + name_bytes
+
+    return adv, scan_response
 
 
 ble_adapter = None
@@ -152,10 +164,12 @@ while True:
             # Refresh BLE advertisement with latest sensor values
             if ble_adapter:
                 try:
-                    adv = build_ble_adv(pack_ble_payload(data))
+                    adv, scan_response = build_ble_adv(
+                        pack_ble_payload(data))
                     if ble_adapter.advertising:
                         ble_adapter.stop_advertising()
-                    ble_adapter.start_advertising(adv, interval=1.0)
+                    ble_adapter.start_advertising(
+                        adv, scan_response=scan_response, interval=1.0)
                 except Exception as ble_err:
                     print(f"BLE adv err: {ble_err}")
         except Exception as e:

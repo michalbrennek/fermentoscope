@@ -63,10 +63,14 @@ async def run(target_name: str, once: bool, duration):
     found = asyncio.Event()
 
     def on_detect(device, adv):
-        if adv.local_name != target_name:
-            return
         mfr = adv.manufacturer_data.get(BLE_COMPANY_ID)
-        if not mfr:
+        if not mfr or len(mfr) != PAYLOAD_LEN:
+            return
+        # Match on local name when available; fall back to "any advert with
+        # our company ID and exact payload length" so passive scans and
+        # non-name-carrying adverts are still accepted. The 16-byte payload
+        # shape is specific enough to disambiguate from other 0xFFFF users.
+        if adv.local_name is not None and adv.local_name != target_name:
             return
         decoded = decode_payload(bytes(mfr))
         if decoded is None:

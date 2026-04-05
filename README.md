@@ -242,7 +242,7 @@ Once running, the Feather serves JSON at `http://sourdough.local:8080/`:
 
 The Feather also broadcasts the latest sensor reading as a BLE advertisement, independently of the WiFi path. This exists because WiFi + mDNS isn't always reachable — Android hotspots in particular enable **client isolation** by default, which lets the ESP32 join the hotspot but blocks HTTP between devices on the same SSID. BLE sidesteps the AP entirely: any phone, laptop, or other Pi within range can read the sensor values directly.
 
-The advertisement uses standard BLE manufacturer-specific data. The advertiser's local name is the hostname from `FERMENTOSCOPE_HOSTNAME` (default `sourdough`), and the payload sits in a Manufacturer Specific AD with company ID `0xFFFF` (Bluetooth SIG's reserved "for testing" value — consumers should filter on the advertiser name rather than the company ID alone).
+The advertisement uses standard BLE manufacturer-specific data. The hostname from `FERMENTOSCOPE_HOSTNAME` (default `sourdough`) is broadcast as the Complete Local Name in a **scan response** packet (the 31 B adv packet itself is full of Flags + Manufacturer Data), so any *active* BLE scanner — bleak, nRF Connect, system Bluetooth — sees the name via the normal `SCAN_REQ`/`SCAN_RSP` flow. The sensor payload sits in a Manufacturer Specific AD with company ID `0xFFFF` (Bluetooth SIG's reserved "for testing" value). Name-based matching is the recommended way to filter; `tools/ble_scan.py` and the Pi backend also fall back to `company_id == 0xFFFF AND len(payload) == 16` for passive scans or scanners that haven't merged the scan response yet.
 
 ### Payload layout (16 bytes, little-endian)
 

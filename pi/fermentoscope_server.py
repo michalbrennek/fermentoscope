@@ -171,14 +171,20 @@ def fetch_sensors():
     AP has enabled client isolation - falls back to whatever the BLE
     scanner last decoded (if BLE fallback is enabled and the cache is
     fresh). Returns None if both paths fail.
+
+    Returned dicts carry a ``_source`` field ("http" or "ble") so the web
+    UI can display a small BT indicator when the current reading came
+    from BLE rather than HTTP.
     """
     # HTTP first
     for _ in range(3):
         try:
             req = urllib.request.Request(
                 ESP32_URL, headers={"Accept-Encoding": "identity"})
-            return json.loads(
+            d = json.loads(
                 urllib.request.urlopen(req, timeout=3).read().decode())
+            d["_source"] = "http"
+            return d
         except Exception:
             time.sleep(1)
     # HTTP exhausted - try the BLE cache
@@ -212,13 +218,19 @@ def _ble_decode(mfr_data):
 
 
 def fetch_sensors_ble():
-    """Return the last decoded BLE payload if fresh, else None."""
+    """Return the last decoded BLE payload if fresh, else None.
+
+    Stamps ``_source="ble"`` so the web UI can render a BT indicator
+    when HTTP has failed and the Pi is reading sensor data over BLE.
+    """
     with _ble_lock:
         data = _ble_cache["data"]
         ts = _ble_cache["ts"]
     if data is None or time.time() - ts > BLE_CACHE_TTL:
         return None
-    return dict(data)
+    result = dict(data)
+    result["_source"] = "ble"
+    return result
 
 
 def _ble_runner():
@@ -350,6 +362,7 @@ h1{font-size:13px;color:var(--dim);font-weight:400;margin-bottom:8px;flex-shrink
 .status{display:flex;gap:16px;font-size:12px;color:var(--dim);margin-bottom:10px;flex-shrink:0}
 .status .online{color:var(--rise)}
 .status .offline{color:var(--co2)}
+.status .ble-badge{color:#00f8f8;font-weight:600;letter-spacing:.05em}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;flex-shrink:0}
 .cell{background:#161b22;border:1px solid var(--border);border-radius:8px;
  padding:14px;cursor:pointer;transition:border-color .15s}
@@ -398,6 +411,7 @@ h1{font-size:13px;color:var(--dim);font-weight:400;margin-bottom:8px;flex-shrink
  <div class="status">
   <span>Battery: <span id="bat">-</span></span>
   <span id="conn" class="online">Online</span>
+  <span id="ble-badge" class="ble-badge hidden" title="Reading sensor data over BLE (HTTP unreachable)">BT</span>
   <span id="session-info"></span>
  </div>
  <div class="grid">
@@ -597,6 +611,7 @@ let detailKey = null;
 
 async function refresh(){
  const d = await fetchData();
+ const bleBadge = document.getElementById('ble-badge');
  if(d && Object.keys(d).length){
   document.getElementById('co2').textContent = fmt(d.co2,'co2');
   document.getElementById('temp').textContent = fmt(d.temp,'temp');
@@ -605,9 +620,13 @@ async function refresh(){
   document.getElementById('bat').textContent = d.vbat ? d.vbat.toFixed(2)+'V' : '-';
   document.getElementById('conn').textContent = 'Online';
   document.getElementById('conn').className = 'online';
+  // Show the BT badge only when the current reading came from the BLE
+  // fallback path (poller couldn't reach the Feather over HTTP).
+  bleBadge.classList.toggle('hidden', d._source !== 'ble');
  }else{
   document.getElementById('conn').textContent = 'Offline';
   document.getElementById('conn').className = 'offline';
+  bleBadge.classList.add('hidden');
  }
 
  const sess = await fetchSession();

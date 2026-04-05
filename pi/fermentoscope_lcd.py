@@ -143,6 +143,16 @@ def write_fb(img, offset_y=0):
 
 # --- Rendering ---------------------------------------------------------------
 
+def _draw_ble_badge(draw):
+    """Draw a small cyan 'BT' indicator in the top-right corner of the
+    current render. Called by render_values() when the most recent
+    sensor reading came from the BLE fallback path. Cyan (0,248,248)
+    is the brightest blue-ish primary in RGB565 and reads cleanly on
+    the ILI9486; no background fill to stay unobtrusive."""
+    _, _, fs = fonts()
+    draw.text((FB_WIDTH - 22, 4), "BT", fill=(0, 248, 248), font=fs)
+
+
 def render_values(last_data, sensor_online, sess):
     """Top 120px: 4 big sensor values + battery/network status."""
     img = Image.new("RGB", (FB_WIDTH, TOP_H), BG)
@@ -181,6 +191,10 @@ def render_values(last_data, sensor_online, sess):
     pi_ip = get_local_ip()
     draw.text((5, 100), f"IP: {pi_ip}  fermentoscope.local",
               fill=DIM, font=fs)
+
+    # BT indicator - only shown when the current reading came from BLE
+    if d.get("_source") == "ble":
+        _draw_ble_badge(draw)
 
     draw.line([(0, TOP_H - 1), (FB_WIDTH, TOP_H - 1)], fill=(48, 54, 61))
     return img

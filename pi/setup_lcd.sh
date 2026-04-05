@@ -39,18 +39,39 @@ ESP32_URL="${ESP32_URL:-http://sourdough.local:8080/}"
 
 # --- System update & packages ------------------------------------------------
 echo ""
-echo "[1/8] Updating package lists..."
+echo "[1/9] Updating package lists..."
 sudo apt-get update -qq
 
-echo "[2/8] Installing system packages..."
+echo "[2/9] Installing system packages..."
 sudo apt-get install -y --no-install-recommends \
-    git python3 python3-pil python3-evdev python3-requests \
+    git python3 python3-pil python3-pip python3-evdev python3-requests \
     avahi-daemon avahi-utils libnss-mdns \
+    bluez rfkill \
     fonts-terminus libts-bin evtest \
     openssl ca-certificates
 
+# --- Configure BLE fallback --------------------------------------------------
+# Install bleak + enable the onboard Bluetooth adapter so the backend can
+# fall back to the Feather's BLE advertisement when HTTP is unreachable
+# (e.g. on an Android hotspot with client isolation). Optional - if this
+# step fails the backend still runs HTTP-only.
+echo "[3/9] Configuring BLE fallback..."
+sudo pip install --break-system-packages --quiet bleak || \
+    echo "  (bleak install failed - BLE fallback will be disabled at runtime)"
+
+if rfkill list bluetooth 2>/dev/null | grep -q Bluetooth; then
+    sudo rfkill unblock bluetooth
+    if [ -f /etc/bluetooth/main.conf ]; then
+        sudo sed -i 's/^#AutoEnable=true/AutoEnable=true/' /etc/bluetooth/main.conf
+    fi
+    sudo systemctl enable --now bluetooth.service 2>/dev/null || true
+    echo "  Bluetooth adapter unblocked and AutoEnable=true"
+else
+    echo "  (no Bluetooth hardware detected - BLE fallback disabled)"
+fi
+
 # --- Configure LCD overlays --------------------------------------------------
-echo "[3/8] Configuring Waveshare 3.5\" LCD (ILI9486 + XPT2046 touch)..."
+echo "[4/9] Configuring Waveshare 3.5\" LCD (ILI9486 + XPT2046 touch)..."
 
 # Use /boot/firmware/config.txt on Bookworm, fallback to /boot/config.txt
 if [ ! -f "$BOOT_CONFIG" ]; then
@@ -78,7 +99,7 @@ sudo systemctl disable getty@tty1.service 2>/dev/null || true
 echo 'kernel.printk = 0 4 1 3' | sudo tee /etc/sysctl.d/99-fermentoscope-silence.conf >/dev/null
 
 # --- Set hostname ------------------------------------------------------------
-echo "[4/8] Setting hostname to 'fermentoscope'..."
+echo "[5/9] Setting hostname to 'fermentoscope'..."
 CURRENT_HOST="$(hostname)"
 if [ "$CURRENT_HOST" != "fermentoscope" ]; then
     sudo hostnamectl set-hostname fermentoscope
@@ -90,7 +111,7 @@ fi
 sudo systemctl enable --now avahi-daemon
 
 # --- Fetch project -----------------------------------------------------------
-echo "[5/8] Fetching project files..."
+echo "[6/9] Fetching project files..."
 if [ -d "$INSTALL_DIR" ]; then
     (cd "$INSTALL_DIR" && git pull --quiet)
 else
@@ -98,13 +119,13 @@ else
 fi
 
 # --- Touchscreen calibration (default values from Waveshare docs) -----------
-echo "[6/8] Installing default touchscreen calibration..."
+echo "[7/9] Installing default touchscreen calibration..."
 if [ ! -f /etc/pointercal ]; then
     echo '-8417 49 33293492 45 5631 -1385986 65536 480 320 0' | sudo tee /etc/pointercal >/dev/null
 fi
 
 # --- Create systemd service --------------------------------------------------
-echo "[7/8] Installing systemd service..."
+echo "[8/9] Installing systemd service..."
 sudo tee /etc/systemd/system/fermentoscope.service >/dev/null <<EOF
 [Unit]
 Description=Fermentoscope sourdough monitor (LCD variant)
@@ -131,7 +152,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable fermentoscope.service
 
 # --- Done --------------------------------------------------------------------
-echo "[8/8] Setup complete."
+echo "[9/9] Setup complete."
 
 cat <<EOF
 

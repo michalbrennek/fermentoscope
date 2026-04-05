@@ -39,17 +39,39 @@ ESP32_URL="${ESP32_URL:-http://sourdough.local:8080/}"
 
 # --- Update system & install packages ---------------------------------------
 echo ""
-echo "[1/6] Updating package lists..."
+echo "[1/7] Updating package lists..."
 sudo apt-get update -qq
 
-echo "[2/6] Installing system packages..."
+echo "[2/7] Installing system packages..."
 sudo apt-get install -y --no-install-recommends \
-    git python3 python3-pil python3-requests \
+    git python3 python3-pil python3-pip python3-requests \
     avahi-daemon avahi-utils libnss-mdns \
+    bluez rfkill \
     openssl ca-certificates
 
+# --- Configure BLE fallback --------------------------------------------------
+# Install bleak + enable the onboard Bluetooth adapter so the backend can
+# fall back to the Feather's BLE advertisement when HTTP is unreachable
+# (e.g. on an Android hotspot with client isolation). The fallback is
+# strictly optional - if this step fails the backend still runs HTTP-only.
+echo "[3/7] Configuring BLE fallback..."
+sudo pip install --break-system-packages --quiet bleak || \
+    echo "  (bleak install failed - BLE fallback will be disabled at runtime)"
+
+if rfkill list bluetooth 2>/dev/null | grep -q Bluetooth; then
+    sudo rfkill unblock bluetooth
+    # Make bluetoothd auto-power hci0 on boot so bleak finds a powered adapter
+    if [ -f /etc/bluetooth/main.conf ]; then
+        sudo sed -i 's/^#AutoEnable=true/AutoEnable=true/' /etc/bluetooth/main.conf
+    fi
+    sudo systemctl enable --now bluetooth.service 2>/dev/null || true
+    echo "  Bluetooth adapter unblocked and AutoEnable=true"
+else
+    echo "  (no Bluetooth hardware detected - BLE fallback disabled)"
+fi
+
 # --- Set hostname to fermentoscope ------------------------------------------
-echo "[3/6] Setting hostname to 'fermentoscope'..."
+echo "[4/7] Setting hostname to 'fermentoscope'..."
 CURRENT_HOST="$(hostname)"
 if [ "$CURRENT_HOST" != "fermentoscope" ]; then
     sudo hostnamectl set-hostname fermentoscope
@@ -61,7 +83,7 @@ fi
 sudo systemctl enable --now avahi-daemon
 
 # --- Clone or update repo ---------------------------------------------------
-echo "[4/6] Fetching project files..."
+echo "[5/7] Fetching project files..."
 if [ -d "$INSTALL_DIR" ]; then
     (cd "$INSTALL_DIR" && git pull --quiet)
 else
@@ -69,7 +91,7 @@ else
 fi
 
 # --- Create systemd service -------------------------------------------------
-echo "[5/6] Installing systemd service..."
+echo "[6/7] Installing systemd service..."
 sudo tee /etc/systemd/system/fermentoscope.service >/dev/null <<EOF
 [Unit]
 Description=Fermentoscope sourdough monitor (base)
@@ -95,7 +117,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now fermentoscope.service
 
 # --- Wait for service to come up --------------------------------------------
-echo "[6/6] Starting service..."
+echo "[7/7] Starting service..."
 sleep 4
 
 if systemctl is-active --quiet fermentoscope.service; then

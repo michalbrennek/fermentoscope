@@ -47,6 +47,54 @@ feather/
     └── vl53l4cx.py      # VL53L4CX time-of-flight distance driver
 ```
 
+## Feather controls and indicators
+
+### Buttons
+
+The ESP32 Feather V2 has two small tactile buttons on the top edge:
+
+| Button | Label | Function |
+|--------|-------|----------|
+| **RESET** | `RST` | Reboots the ESP32. Press this to recalibrate the distance sensor (the baseline is re-measured on every boot). |
+| **BOOT** | `BOOT` / `USER` | Used to enter the ROM bootloader for flashing. Normally unused in operation. To enter bootloader mode: hold `BOOT`, press and release `RST`, then release `BOOT`. |
+
+### Turning on and off
+
+The Feather V2 has **no dedicated power switch**. To turn it on/off:
+
+- **Turn ON**: connect USB-C power or plug in the LiPo battery. The board boots automatically.
+- **Turn OFF**: unplug USB-C **and** disconnect the battery. Pressing `RST` only reboots — it does not power the board off.
+- Optional: splice a small slide switch into one of the battery leads if you want a hardware on/off.
+
+### LEDs
+
+The Feather has three user-visible LEDs:
+
+| LED | Location | Meaning |
+|-----|----------|---------|
+| **Orange CHG** | Right of USB-C | Battery charge status from the BQ24074 charger chip |
+| **Red D13** | Near GPIO13 | User LED (currently unused by Fermentoscope code) |
+| **NeoPixel** | RGB LED near the USB-C | CircuitPython status and optional user indication |
+
+#### Orange CHG LED (battery charging)
+
+| Pattern | Meaning |
+|---------|---------|
+| **Off** | Not charging — no USB power, or battery already full |
+| **Solid on** | Actively charging the LiPo |
+| **Slow blink (~1 Hz)** | Fault — battery too hot/cold, cell damaged, timeout, or deeply discharged. Unplug USB for a few seconds and try again. A deeply discharged LiPo may trickle-charge (blinking) for a while before switching to solid-on fast charge. |
+
+#### NeoPixel (CircuitPython status)
+
+| Pattern | Meaning |
+|---------|---------|
+| **Green** | Boot successful, `code.py` running |
+| **Fading white / rainbow** | Startup / REPL waiting |
+| **Red flashes** | Python exception — count the flashes to identify the error: 1 = generic, 2 = syntax error, 3 = IndentationError, etc. Check the serial console for the traceback |
+| **Yellow** | Safe mode — CircuitPython booted without running `code.py`. Usually after a crash. Reset with USB to recover |
+| **Yellow flashes** | Safe mode with error code — count of flashes indicates the reason (brown-out, hard crash, watchdog, etc.) |
+| **Off** | Deep sleep, or NeoPixel turned off by code |
+
 ## Setup
 
 ### Prerequisites

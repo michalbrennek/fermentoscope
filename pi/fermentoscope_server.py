@@ -13,12 +13,21 @@ import json
 import os
 import sqlite3
 import ssl
+import struct
 import subprocess
 import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+
+# Optional BLE fallback: if bleak isn't installed, the Pi runs HTTP-only
+# exactly as before. Enable by running `pip install bleak`.
+try:
+    from bleak import BleakScanner
+    HAS_BLEAK = True
+except ImportError:
+    HAS_BLEAK = False
 
 # --- Configuration -----------------------------------------------------------
 
@@ -32,6 +41,17 @@ KEY_FILE = CERT_DIR / "key.pem"
 HTTP_PORT = int(os.environ.get("FERMENTOSCOPE_HTTP_PORT", "80"))
 HTTPS_PORT = int(os.environ.get("FERMENTOSCOPE_HTTPS_PORT", "443"))
 POLL_INTERVAL = 10  # seconds between sensor polls
+
+# BLE fallback configuration - matches feather/code.py
+BLE_NAME = os.environ.get("FERMENTOSCOPE_BLE_NAME", "sourdough")
+BLE_COMPANY_ID = 0xFFFF
+BLE_PAYLOAD_FMT = "<HhBHHHBI"
+BLE_PAYLOAD_LEN = struct.calcsize(BLE_PAYLOAD_FMT)  # 16
+BLE_CACHE_TTL = 15  # seconds a cached BLE reading is considered fresh
+
+# Shared BLE cache updated by the scanner thread, read by fetch_sensors()
+_ble_lock = threading.Lock()
+_ble_cache = {"data": None, "ts": 0.0}
 
 # Shared state (updated by polling thread, read by HTTP handlers)
 state_lock = threading.Lock()
@@ -144,6 +164,15 @@ def db_update_session_uptime(session_id, uptime):
 # --- ESP32 polling -----------------------------------------------------------
 
 def fetch_sensors():
+    """Fetch a sensor reading from the Feather.
+
+    Tries HTTP first (the fastest and richest path). If HTTP fails across
+    all three attempts - typically because WiFi/mDNS is unreachable or an
+    AP has enabled client isolation - falls back to whatever the BLE
+    scanner last decoded (if BLE fallback is enabled and the cache is
+    fresh). Returns None if both paths fail.
+    """
+    # HTTP first
     for _ in range(3):
         try:
             req = urllib.request.Request(
@@ -152,7 +181,91 @@ def fetch_sensors():
                 urllib.request.urlopen(req, timeout=3).read().decode())
         except Exception:
             time.sleep(1)
-    return None
+    # HTTP exhausted - try the BLE cache
+    return fetch_sensors_ble()
+
+
+def _ble_decode(mfr_data):
+    """Decode the 16-byte BLE manufacturer data payload from the Feather.
+
+    Matches the pack_ble_payload() format in feather/code.py. Returns a
+    dict with the same keys as the HTTP JSON endpoint (minus 'usb' and
+    'host' which aren't broadcast over BLE) or None on malformed input.
+    """
+    if len(mfr_data) != BLE_PAYLOAD_LEN:
+        return None
+    try:
+        co2, temp100, hum, dist, rise, baseline, vbat50, uptime = struct.unpack(
+            BLE_PAYLOAD_FMT, mfr_data)
+    except Exception:
+        return None
+    return {
+        "co2": co2,
+        "temp": temp100 / 100.0,
+        "hum": float(hum),
+        "dist": dist,
+        "rise": float(rise),
+        "base": baseline,
+        "vbat": round(3.0 + vbat50 / 50.0, 2),
+        "uptime": uptime,
+    }
+
+
+def fetch_sensors_ble():
+    """Return the last decoded BLE payload if fresh, else None."""
+    with _ble_lock:
+        data = _ble_cache["data"]
+        ts = _ble_cache["ts"]
+    if data is None or time.time() - ts > BLE_CACHE_TTL:
+        return None
+    return dict(data)
+
+
+def _ble_runner():
+    """Run a BleakScanner forever in this thread's own asyncio loop.
+
+    The detection callback decodes matching adverts into _ble_cache. The
+    poller's fetch_sensors_ble() reads that cache with an age check.
+    """
+    import asyncio
+
+    async def _main():
+        def _on_detect(_device, adv):
+            if adv.local_name != BLE_NAME:
+                return
+            mfr = adv.manufacturer_data.get(BLE_COMPANY_ID)
+            if not mfr:
+                return
+            decoded = _ble_decode(bytes(mfr))
+            if decoded is None:
+                return
+            with _ble_lock:
+                _ble_cache["data"] = decoded
+                _ble_cache["ts"] = time.time()
+
+        scanner = BleakScanner(detection_callback=_on_detect)
+        await scanner.start()
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        finally:
+            await scanner.stop()
+
+    try:
+        asyncio.run(_main())
+    except Exception as e:
+        print(f"BLE scanner thread exited: {e}")
+
+
+def start_ble_scanner():
+    """Start the background BLE scanner if bleak is available."""
+    if not HAS_BLEAK:
+        print("bleak not installed - BLE fallback disabled "
+              "(run: pip install bleak to enable)")
+        return
+    threading.Thread(target=_ble_runner, daemon=True,
+                     name="ble-scanner").start()
+    print(f"BLE fallback scanner running (target name: {BLE_NAME!r})")
 
 
 def poller():
@@ -664,6 +777,7 @@ def main():
     db_init()
     with state_lock:
         state["current_session"] = db_get_session()
+    start_ble_scanner()
     t = threading.Thread(target=poller, daemon=True)
     t.start()
     start_server()

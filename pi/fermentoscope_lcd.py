@@ -56,6 +56,7 @@ CAL_S = 65536
 
 # View state
 history = deque(maxlen=HISTORY_MAX)
+_chg_cache = {"state": "Discharging"}
 view = "plots"  # "plots" or "detail:KEY"
 ZONES = [(0, 120, "co2"), (120, 240, "temp"),
          (240, 360, "hum"), (360, 480, "rise")]
@@ -153,7 +154,7 @@ def _draw_ble_badge(draw):
     draw.text((FB_WIDTH - 22, 4), "BT", fill=(0, 248, 248), font=fs)
 
 
-def render_values(last_data, sensor_online, sess):
+def render_values(last_data, sensor_online, sess, hist=()):
     """Top 120px: 4 big sensor values + battery/network status."""
     img = Image.new("RGB", (FB_WIDTH, TOP_H), BG)
     draw = ImageDraw.Draw(img)
@@ -183,9 +184,26 @@ def render_values(last_data, sensor_online, sess):
 
     if sensor_online:
         bp = bat_pct(vbat)
+        chg = _chg_cache.get("state", "Discharging")
+        if len(hist) >= 5:
+            window = min(len(hist), 30)
+            recent_v = [h.get("vbat", 0) for h in list(hist)[-window:]]
+            v_min, v_max = min(recent_v), max(recent_v)
+            if d.get("usb") or vbat > 4.10:
+                if v_max - v_min < 0.02 and vbat >= 4.15:
+                    chg = "Full"
+                else:
+                    chg = "Charging"
+            elif v_max - vbat > 0.02:
+                chg = "Discharging"
+            elif vbat - v_min > 0.02:
+                chg = "Charging"
+        elif d.get("usb") or vbat > 4.10:
+            chg = "Charging"
+        _chg_cache["state"] = chg
         bc = GREEN if bp > 50 else YELLOW if bp > 20 else RED
-        draw.text((5, 80), f"{bp}% {vbat:.2f}V", fill=bc, font=fs)
-        draw.text((150, 80), "Online", fill=GREEN, font=fs)
+        draw.text((5, 80), f"{chg}:{bp}% {vbat:.2f}V", fill=bc, font=fs)
+        draw.text((230, 80), "Online", fill=GREEN, font=fs)
     else:
         draw.text((5, 80), "Offline", fill=RED, font=fs)
 
@@ -390,7 +408,7 @@ def refresh_screen():
         key = view.split(":")[1]
         write_fb(render_detail(key, list(history)), 0)
     else:
-        write_fb(render_values(last_data, sensor_online, sess), 0)
+        write_fb(render_values(last_data, sensor_online, sess, history), 0)
         write_fb(render_combined(list(history)), TOP_H)
 
 

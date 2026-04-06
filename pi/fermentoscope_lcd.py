@@ -101,9 +101,9 @@ def nice_scale(vmin, vmax, ticks=4):
 def bat_pct(v):
     if v <= 3.2:
         return 0
-    if v >= 4.1:
+    if v >= 4.2:
         return 100
-    return int((v - 3.2) / 0.9 * 100)
+    return int((v - 3.2) / 1.0 * 100)
 
 
 def get_local_ip():

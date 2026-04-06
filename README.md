@@ -1,5 +1,7 @@
 # Fermentoscope
 
+> The fight with digital exclusion of sourdough is on!
+
 A real-time sourdough fermentation monitor that tracks CO2, temperature, humidity, and dough rise height using an ESP32 microcontroller and environmental sensors.
 
 ## What it does

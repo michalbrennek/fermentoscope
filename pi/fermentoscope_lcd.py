@@ -56,7 +56,6 @@ CAL_S = 65536
 
 # View state
 history = deque(maxlen=HISTORY_MAX)
-_chg_cache = {"state": "Discharging"}
 view = "plots"  # "plots" or "detail:KEY"
 ZONES = [(0, 120, "co2"), (120, 240, "temp"),
          (240, 360, "hum"), (360, 480, "rise")]
@@ -184,23 +183,18 @@ def render_values(last_data, sensor_online, sess, hist=()):
 
     if sensor_online:
         bp = bat_pct(vbat)
-        chg = _chg_cache.get("state", "Discharging")
-        if len(hist) >= 5:
-            window = min(len(hist), 30)
-            recent_v = [h.get("vbat", 0) for h in list(hist)[-window:]]
-            v_min, v_max = min(recent_v), max(recent_v)
-            if d.get("usb") or vbat > 4.10:
-                if v_max - v_min < 0.02 and vbat >= 4.15:
+        if d.get("usb"):
+            if len(hist) >= 5:
+                window = min(len(hist), 30)
+                recent_v = [h.get("vbat", 0) for h in list(hist)[-window:]]
+                if max(recent_v) - min(recent_v) < 0.02 and vbat >= 4.15:
                     chg = "Full"
                 else:
                     chg = "Charging"
-            elif v_max - vbat > 0.02:
-                chg = "Discharging"
-            elif vbat - v_min > 0.02:
+            else:
                 chg = "Charging"
-        elif d.get("usb") or vbat > 4.10:
-            chg = "Charging"
-        _chg_cache["state"] = chg
+        else:
+            chg = "Discharging"
         bc = GREEN if bp > 50 else YELLOW if bp > 20 else RED
         draw.text((5, 80), f"{chg}:{bp}% {vbat:.2f}V", fill=bc, font=fs)
         draw.text((230, 80), "Online", fill=GREEN, font=fs)

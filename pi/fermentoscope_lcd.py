@@ -181,12 +181,13 @@ def render_values(last_data, sensor_online, sess):
     else:
         draw.text((cols[3], 58), "Rise (mm)", fill=DIM, font=fs)
 
-    bp = bat_pct(vbat)
-    bc = GREEN if bp > 50 else YELLOW if bp > 20 else RED
-    conn = "Online" if sensor_online else "Offline"
-    cc = GREEN if sensor_online else RED
-    draw.text((5, 80), f"{bp}% {vbat:.2f}V", fill=bc, font=fs)
-    draw.text((150, 80), conn, fill=cc, font=fs)
+    if sensor_online:
+        bp = bat_pct(vbat)
+        bc = GREEN if bp > 50 else YELLOW if bp > 20 else RED
+        draw.text((5, 80), f"{bp}% {vbat:.2f}V", fill=bc, font=fs)
+        draw.text((150, 80), "Online", fill=GREEN, font=fs)
+    else:
+        draw.text((5, 80), "Offline", fill=RED, font=fs)
 
     pi_ip = get_local_ip()
     draw.text((5, 100), f"IP: {pi_ip}  fermentoscope.local",
